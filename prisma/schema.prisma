@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  CASHIER
+}
+
+enum TaxRegime {
+  SIMPLIFICADO
+  COMUN
+  NO_RESPONSABLE
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum VatRate {
+  EXEMPT
+  VAT_0
+  VAT_5
+  VAT_19
+}
+
+enum DocumentType {
+  CC
+  NIT
+  CE
+  TI
+  PAS
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  role         UserRole @default(CASHIER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("users")
+}
+
+model Business {
+  id              String    @id @default(cuid())
+  tradeName       String
+  legalName       String
+  nit             String    @unique
+  verificationDigit String
+  address         String
+  city            String
+  department      String    @default("Antioquia")
+  country         String    @default("CO")
+  phone           String?
+  email           String?
+  taxRegime       TaxRegime @default(SIMPLIFICADO)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  users    User[]
+  products Product[]
+  customers Customer[]
+
+  @@map("businesses")
+}
+
+model Customer {
+  id             String         @id @default(cuid())
+  businessId     String
+  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name           String
+  documentType   DocumentType
+  documentNumber String
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  status         CustomerStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([businessId, documentType, documentNumber])
+  @@index([businessId])
+  @@map("customers")
+}
+
+model Product {
+  id          String        @id @default(cuid())
+  businessId  String
+  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  sku         String?
+  barcode     String?
+  category    String?
+  unit        String        @default("UND")
+  vatRate     VatRate       @default(VAT_19)
+  priceCents  Int
+  costCents   Int           @default(0)
+  stock       Int           @default(0)
+  minStock    Int           @default(0)
+  status      ProductStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([businessId, sku])
+  @@unique([businessId, barcode])
+  @@index([businessId])
+  @@index([businessId, status])
+  @@map("products")
+}
