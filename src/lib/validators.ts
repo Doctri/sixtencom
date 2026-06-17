@@ -51,10 +51,38 @@ export const customerSchema = z.object({
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
 });
 
+export const invoiceItemSchema = z.object({
+  productId: z.string().min(1).optional().or(z.literal("")),
+  description: z.string().min(1, "Descripción requerida").max(200, "Descripción demasiado larga"),
+  quantity: z.coerce.number().int("Cantidad inválida").min(1, "La cantidad debe ser al menos 1"),
+  unitPrice: moneySchema.refine((value) => value > 0, "El precio debe ser mayor que cero"),
+  discount: moneySchema.default(0),
+  vatRate: z.enum(["EXEMPT", "VAT_0", "VAT_5", "VAT_19"]).default("VAT_19"),
+});
+
+export const invoiceSchema = z.object({
+  customerId: z.string().min(1, "Cliente requerido"),
+  prefix: z.string().min(1).max(6, "Prefijo demasiado largo").default("FV"),
+  status: z.enum(["DRAFT", "OPEN"]).default("OPEN"),
+  dueDate: z.string().datetime().optional().or(z.literal("")),
+  notes: z.string().max(500, "Notas demasiado largas").optional().or(z.literal("")),
+  items: z.array(invoiceItemSchema).min(1, "Agrega al menos un producto"),
+});
+
+export const paymentSchema = z.object({
+  amount: moneySchema.refine((value) => value > 0, "El monto debe ser mayor que cero"),
+  method: z.enum(["CASH", "CARD", "TRANSFER", "OTHER"]).default("CASH"),
+  reference: z.string().max(80, "Referencia demasiado larga").optional().or(z.literal("")),
+  paidAt: z.string().datetime().optional().or(z.literal("")),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ProductInput = z.infer<typeof productSchema>;
 export type CustomerInput = z.infer<typeof customerSchema>;
+export type InvoiceInput = z.infer<typeof invoiceSchema>;
+export type InvoiceItemInput = z.infer<typeof invoiceItemSchema>;
+export type PaymentInput = z.infer<typeof paymentSchema>;
 
 export function formatNit(nit: string, verificationDigit: string) {
   return `${nit}-${verificationDigit}`;
