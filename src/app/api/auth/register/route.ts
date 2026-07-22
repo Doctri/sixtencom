@@ -35,8 +35,8 @@ export async function POST(request: NextRequest) {
           address: data.address,
           city: data.city,
           department: data.department,
-          phone: data.phone,
-          email,
+          phone: data.phone || null,
+          email: email || null,
           taxRegime: data.taxRegime,
         },
       });
@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
+    console.error("Register error:", error);
     return handleApiError(error);
   }
 }
