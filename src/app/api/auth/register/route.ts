@@ -8,7 +8,13 @@ import { registerSchema } from "@/lib/validators";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    
+    console.log("Register request body:", JSON.stringify(body, null, 2));
+    
     const data = registerSchema.parse(body);
+    
+    console.log("Validated data:", JSON.stringify(data, null, 2));
+    
     const email = data.email.toLowerCase();
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -35,8 +41,8 @@ export async function POST(request: NextRequest) {
           address: data.address,
           city: data.city,
           department: data.department,
-          phone: data.phone || null,
-          email: email || null,
+          phone: data.phone || undefined,
+          email: email || undefined,
           taxRegime: data.taxRegime,
         },
       });
@@ -80,6 +86,10 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("Register error:", error);
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
     return handleApiError(error);
   }
 }
