@@ -16,7 +16,7 @@ export const registerSchema = z.object({
   address: z.string().min(5, "Dirección requerida"),
   city: z.string().min(2, "Ciudad requerida"),
   department: z.string().min(2, "Departamento requerido"),
-  phone: z.string().optional(),
+  phone: z.string().max(20, "Teléfono inválido").nullable().optional(),
   taxRegime: z.enum(["SIMPLIFICADO", "COMUN", "NO_RESPONSABLE"]),
 });
 
