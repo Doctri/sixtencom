@@ -16,18 +16,18 @@ export default function RegisterPage() {
 
     const form = new FormData(event.currentTarget);
     const payload = {
-      fullName: String(form.get("fullName") ?? ""),
-      email: String(form.get("email") ?? ""),
-      password: String(form.get("password") ?? ""),
-      tradeName: String(form.get("tradeName") ?? ""),
-      legalName: String(form.get("legalName") ?? ""),
-      nit: String(form.get("nit") ?? ""),
-      verificationDigit: String(form.get("verificationDigit") ?? ""),
-      address: String(form.get("address") ?? ""),
-      city: String(form.get("city") ?? ""),
-      department: String(form.get("department") ?? ""),
-      phone: String(form.get("phone") ?? ""),
-      taxRegime: String(form.get("taxRegime") ?? "SIMPLIFICADO"),
+      fullName: String(form.get("fullName") ?? "").trim(),
+      email: String(form.get("email") ?? "").trim(),
+      password: String(form.get("password") ?? "").trim(),
+      tradeName: String(form.get("tradeName") ?? "").trim(),
+      legalName: String(form.get("legalName") ?? "").trim(),
+      nit: String(form.get("nit") ?? "").trim(),
+      verificationDigit: String(form.get("verificationDigit") ?? "").trim(),
+      address: String(form.get("address") ?? "").trim(),
+      city: String(form.get("city") ?? "").trim(),
+      department: String(form.get("department") ?? "").trim(),
+      phone: String(form.get("phone") ?? "").trim() || null,
+      taxRegime: String(form.get("taxRegime") ?? "SIMPLIFICADO").trim(),
     };
 
     try {
@@ -106,7 +106,7 @@ export default function RegisterPage() {
           </div>
           <div className="field">
             <label htmlFor="phone">Teléfono</label>
-            <input id="phone" name="phone" type="tel" required placeholder="Ej. 3001234567" />
+            <input id="phone" name="phone" type="tel" placeholder="Ej. 3001234567" />
           </div>
           <div className="field">
             <label htmlFor="taxRegime">Régimen</label>
