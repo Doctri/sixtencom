@@ -59,22 +59,8 @@ export async function POST(request: NextRequest) {
       return { business, user };
     });
 
-    // Crear sesión
-    try {
-      await createSession({
-        userId: result.user.id,
-        businessId: result.business.id,
-        email: result.user.email,
-        fullName: result.user.fullName,
-        role: result.user.role,
-      });
-    } catch (sessionError) {
-      console.error("Session creation error:", sessionError);
-      // Continuar aunque falle la sesión, es mejor que fallar todo
-    }
-
-    // Retornar respuesta exitosa
-    return NextResponse.json(
+    // Crear respuesta exitosa
+    const response = NextResponse.json(
       {
         success: true,
         user: {
@@ -91,6 +77,22 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
+
+    // Crear sesión usando headers en lugar de cookies directo
+    try {
+      await createSession({
+        userId: result.user.id,
+        businessId: result.business.id,
+        email: result.user.email,
+        fullName: result.user.fullName,
+        role: result.user.role,
+      });
+    } catch (sessionError) {
+      console.error("Session creation error:", sessionError);
+      // Continuar aunque falle la sesión
+    }
+
+    return response;
   } catch (error) {
     console.error("Register error:", error);
     
