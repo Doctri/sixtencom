@@ -1,36 +1,35 @@
 import bcrypt from "bcryptjs";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSession } from "@/lib/auth";
-import { handleApiError, jsonError } from "@/lib/api";
 import { registerSchema } from "@/lib/validators";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    console.log("Register request body:", JSON.stringify(body, null, 2));
-    
+    // Validar datos
     const data = registerSchema.parse(body);
-    
-    console.log("Validated data:", JSON.stringify(data, null, 2));
-    
     const email = data.email.toLowerCase();
 
+    // Verificar si el usuario ya existe
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return jsonError("Ya existe una cuenta con ese correo", 409);
+      return NextResponse.json({ error: "Ya existe una cuenta con ese correo" }, { status: 409 });
     }
 
+    // Verificar si el negocio ya existe
     const existingBusiness = await prisma.business.findUnique({
       where: { nit: data.nit },
     });
     if (existingBusiness) {
-      return jsonError("Ya existe una empresa registrada con ese NIT", 409);
+      return NextResponse.json({ error: "Ya existe una empresa registrada con ese NIT" }, { status: 409 });
     }
 
+    // Hash de la contraseña
     const passwordHash = await bcrypt.hash(data.password, 12);
 
+    // Crear negocio y usuario en una transacción
     const result = await prisma.$transaction(async (tx) => {
       const business = await tx.business.create({
         data: {
@@ -41,8 +40,8 @@ export async function POST(request: NextRequest) {
           address: data.address,
           city: data.city,
           department: data.department,
-          phone: data.phone || undefined,
-          email: email || undefined,
+          phone: data.phone ? data.phone : null,
+          email: email,
           taxRegime: data.taxRegime,
         },
       });
@@ -60,16 +59,24 @@ export async function POST(request: NextRequest) {
       return { business, user };
     });
 
-    await createSession({
-      userId: result.user.id,
-      businessId: result.business.id,
-      email: result.user.email,
-      fullName: result.user.fullName,
-      role: result.user.role,
-    });
+    // Crear sesión
+    try {
+      await createSession({
+        userId: result.user.id,
+        businessId: result.business.id,
+        email: result.user.email,
+        fullName: result.user.fullName,
+        role: result.user.role,
+      });
+    } catch (sessionError) {
+      console.error("Session creation error:", sessionError);
+      // Continuar aunque falle la sesión, es mejor que fallar todo
+    }
 
-    return Response.json(
+    // Retornar respuesta exitosa
+    return NextResponse.json(
       {
+        success: true,
         user: {
           id: result.user.id,
           email: result.user.email,
@@ -82,14 +89,23 @@ export async function POST(request: NextRequest) {
           },
         },
       },
-      { status: 201 },
+      { status: 201 }
     );
   } catch (error) {
     console.error("Register error:", error);
+    
     if (error instanceof Error) {
-      console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
+      if (error.message.includes("Unique constraint failed")) {
+        return NextResponse.json(
+          { error: "El email o NIT ya están registrados" },
+          { status: 409 }
+        );
+      }
     }
-    return handleApiError(error);
+
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    );
   }
 }
