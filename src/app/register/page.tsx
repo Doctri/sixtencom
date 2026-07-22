@@ -8,10 +8,12 @@ export default function RegisterPage() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState("");
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setDebugInfo("");
     setLoading(true);
 
     const form = new FormData(event.currentTarget);
@@ -26,9 +28,12 @@ export default function RegisterPage() {
       address: String(form.get("address") ?? "").trim(),
       city: String(form.get("city") ?? "").trim(),
       department: String(form.get("department") ?? "").trim(),
-      phone: String(form.get("phone") ?? "").trim() || null,
+      phone: String(form.get("phone") ?? "").trim() || undefined,
       taxRegime: String(form.get("taxRegime") ?? "SIMPLIFICADO").trim(),
     };
+
+    console.log("Payload enviado:", JSON.stringify(payload, null, 2));
+    setDebugInfo(JSON.stringify(payload, null, 2));
 
     try {
       const response = await fetch("/api/auth/register", {
@@ -38,13 +43,17 @@ export default function RegisterPage() {
       });
 
       const data = await response.json();
+      console.log("Respuesta del servidor:", data);
+      setDebugInfo((prev) => prev + "\n\nRespuesta: " + JSON.stringify(data, null, 2));
+
       if (!response.ok) {
         setError(data?.error ?? "No se pudo crear la cuenta");
         return;
       }
 
       router.push("/dashboard");
-    } catch {
+    } catch (err) {
+      console.error("Error en la solicitud:", err);
       setError("Error de conexión. Intenta de nuevo.");
     } finally {
       setLoading(false);
@@ -59,6 +68,11 @@ export default function RegisterPage() {
           <p className="auth-subtitle">Tu éxito, nuestra prioridad</p>
         </div>
         {error ? <p className="error">{error}</p> : null}
+        {debugInfo && process.env.NODE_ENV === "development" ? (
+          <pre style={{ fontSize: "10px", overflow: "auto", maxHeight: "200px", background: "#f0f0f0", padding: "10px" }}>
+            {debugInfo}
+          </pre>
+        ) : null}
         <form onSubmit={onSubmit}>
           <div className="field">
             <label htmlFor="fullName">Nombre completo</label>
