@@ -15,10 +15,22 @@ export default async function DashboardPage() {
 
   if (!user) redirect("/login");
 
-  const [productCount, customerCount] = await Promise.all([
+  const [productCount, customerCount, invoiceCount] = await Promise.all([
     prisma.product.count({ where: { businessId: session.businessId } }),
     prisma.customer.count({ where: { businessId: session.businessId } }),
+    prisma.invoice.count({ where: { businessId: session.businessId } }),
   ]);
+
+  const receivable = await prisma.invoice.aggregate({
+    where: { businessId: session.businessId, status: { in: ["OPEN", "PARTIAL"] } },
+    _sum: { totalCents: true, paidCents: true },
+  });
+  const receivableCents = (receivable._sum.totalCents ?? 0) - (receivable._sum.paidCents ?? 0);
+  const receivableLabel = new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(receivableCents / 100);
 
   const activeProducts = await prisma.product.count({
     where: { businessId: session.businessId, status: "ACTIVE" },
@@ -42,6 +54,7 @@ export default async function DashboardPage() {
             </Link>
             <Link href="/products">Catálogo</Link>
             <Link href="/customers">Clientes</Link>
+            <Link href="/invoices">Facturas</Link>
           </div>
 
           <div className="grid-2">
@@ -92,10 +105,10 @@ export default async function DashboardPage() {
             </article>
 
             <article className="metric metric-warning">
-              <span>Próximos pasos</span>
-              <strong>Caja POS</strong>
+              <span>Por cobrar</span>
+              <strong style={{ fontSize: "1.6rem" }}>{receivableLabel}</strong>
               <p style={{ margin: "8px 0 0", color: "var(--muted)", fontSize: "0.9rem" }}>
-                Facturación en línea
+                {invoiceCount} facturas
               </p>
             </article>
           </div>

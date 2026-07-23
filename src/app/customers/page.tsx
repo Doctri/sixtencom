@@ -143,6 +143,7 @@ export default function CustomersPage() {
             <Link className="active" href="/customers">
               Clientes
             </Link>
+            <Link href="/invoices">Facturas</Link>
           </div>
 
           <div className="grid-3" style={{ marginBottom: 20 }}>

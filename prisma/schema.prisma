@@ -1,3 +1,13 @@
+// schema.prisma — sixtencom (ERP / Facturación Colombia + DIAN)
+// Versión ALINEADA a las convenciones de tu código actual:
+//   - Dinero en enteros de centavos (Int):  priceCents, totalCents, ...
+//   - IVA como enum VatRate (EXEMPT/VAT_0/VAT_5/VAT_19)
+//   - Multi-tenant por businessId
+//   - Nombres de tabla con @@map (snake_case)
+//
+// Incluye tus modelos actuales (sin cambios de fondo) + los nuevos para VENTAS
+// e INVENTARIO: Invoice, InvoiceItem, Payment, StockMovement, InvoiceCounter.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,6 +17,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ===================== ENUMS EXISTENTES =====================
 enum UserRole {
   OWNER
   ADMIN
@@ -44,6 +55,30 @@ enum CustomerStatus {
   INACTIVE
 }
 
+// ===================== ENUMS NUEVOS (ventas) =====================
+enum InvoiceStatus {
+  DRAFT // borrador
+  OPEN // emitida, pendiente de pago
+  PARTIAL // pago parcial
+  PAID // pagada
+  VOID // anulada
+}
+
+enum PaymentMethod {
+  CASH // efectivo
+  CARD // tarjeta
+  TRANSFER // transferencia
+  OTHER
+}
+
+enum StockMovementType {
+  PURCHASE // entrada por compra
+  SALE // salida por venta
+  ADJUSTMENT // ajuste manual
+  RETURN // devolución
+}
+
+// ===================== MODELOS EXISTENTES =====================
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -57,30 +92,34 @@ model User {
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
+  invoices Invoice[] // NUEVO: facturas creadas por el usuario
+
   @@index([businessId])
   @@map("users")
 }
 
 model Business {
-  id              String    @id @default(cuid())
-  tradeName       String
-  legalName       String
-  nit             String    @unique
+  id                String    @id @default(cuid())
+  tradeName         String
+  legalName         String
+  nit               String    @unique
   verificationDigit String
-  address         String
-  city            String
-  department      String    @default("Antioquia")
-  country         String    @default("CO")
-  phone           String?
-  email           String?
-  taxRegime       TaxRegime @default(SIMPLIFICADO)
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  address           String
+  city              String
+  department        String    @default("Antioquia")
+  country           String    @default("CO")
+  phone             String?
+  email             String?
+  taxRegime         TaxRegime @default(SIMPLIFICADO)
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  users    User[]
-  products Product[]
-  customers Customer[]
+  users           User[]
+  products        Product[]
+  customers       Customer[]
+  invoices        Invoice[] // NUEVO
+  invoiceCounters InvoiceCounter[] // NUEVO
 
   @@map("businesses")
 }
@@ -99,6 +138,8 @@ model Customer {
   status         CustomerStatus @default(ACTIVE)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+
+  invoices Invoice[] // NUEVO
 
   @@unique([businessId, documentType, documentNumber])
   @@index([businessId])
@@ -124,9 +165,115 @@ model Product {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  invoiceItems   InvoiceItem[] // NUEVO
+  stockMovements StockMovement[] // NUEVO
+
   @@unique([businessId, sku])
   @@unique([businessId, barcode])
   @@index([businessId])
   @@index([businessId, status])
   @@map("products")
+}
+
+// ===================== MODELOS NUEVOS (ventas + inventario) =====================
+
+// Consecutivo de numeración por empresa y prefijo/serie (ej. "FV").
+// Se incrementa de forma atómica dentro de la transacción de creación de factura.
+model InvoiceCounter {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  prefix     String   @default("FV")
+  next       Int      @default(1)
+
+  @@unique([businessId, prefix])
+  @@map("invoice_counters")
+}
+
+model Invoice {
+  id         String        @id @default(cuid())
+  businessId String
+  business   Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  number     String // consecutivo completo, ej. "FV-0001"
+  customerId String
+  customer   Customer      @relation(fields: [customerId], references: [id])
+  userId     String?
+  user       User?         @relation(fields: [userId], references: [id])
+  status     InvoiceStatus @default(DRAFT)
+  issueDate  DateTime      @default(now())
+  dueDate    DateTime?
+
+  // Totales en centavos (calculados en backend a partir de los items)
+  subtotalCents Int @default(0) // base sin IVA ni descuentos
+  discountCents Int @default(0)
+  taxCents      Int @default(0)
+  totalCents    Int @default(0)
+  paidCents     Int @default(0)
+
+  notes String?
+
+  // Facturación electrónica DIAN (fase futura)
+  cufe       String? // Código Único de Factura Electrónica
+  dianStatus String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items    InvoiceItem[]
+  payments Payment[]
+
+  @@unique([businessId, number])
+  @@index([businessId])
+  @@index([businessId, status])
+  @@index([customerId])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id        String   @id @default(cuid())
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  // Snapshot del producto al momento de facturar (no cambia si luego editas el producto)
+  description    String
+  quantity       Int // cantidad (usa Int o Decimal según manejes fracciones)
+  unitPriceCents Int // precio unitario al vender
+  discountCents  Int     @default(0)
+  vatRate        VatRate @default(VAT_19)
+  lineTotalCents Int // (quantity * unitPriceCents - discountCents) + IVA
+
+  @@index([invoiceId])
+  @@index([productId])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amountCents Int
+  method      PaymentMethod @default(CASH)
+  reference   String?
+  paidAt      DateTime      @default(now())
+  createdAt   DateTime      @default(now())
+
+  @@index([invoiceId])
+  @@map("payments")
+}
+
+// Kardex: cada entrada/salida de inventario queda registrada (auditable)
+model StockMovement {
+  id        String            @id @default(cuid())
+  productId String
+  product   Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type      StockMovementType
+  quantity  Int // + entra, - sale
+  reason    String?
+  reference String? // ej. id de la factura que originó el movimiento
+  createdAt DateTime          @default(now())
+
+  @@index([productId])
+  @@map("stock_movements")
 }

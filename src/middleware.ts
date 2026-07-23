@@ -23,7 +23,13 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (!isAuthenticated && (pathname.startsWith("/dashboard") || pathname.startsWith("/products"))) {
+  const isProtectedPage =
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/products") ||
+    pathname.startsWith("/customers") ||
+    pathname.startsWith("/invoices");
+
+  if (!isAuthenticated && isProtectedPage) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -39,5 +45,13 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/products/:path*", "/login", "/register", "/api/:path*"],
+  matcher: [
+    "/dashboard/:path*",
+    "/products/:path*",
+    "/customers/:path*",
+    "/invoices/:path*",
+    "/login",
+    "/register",
+    "/api/:path*",
+  ],
 };

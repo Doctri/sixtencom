@@ -147,6 +147,7 @@ export default function ProductsPage() {
               Catálogo
             </Link>
             <Link href="/customers">Clientes</Link>
+            <Link href="/invoices">Facturas</Link>
           </div>
 
           <div className="grid-3" style={{ marginBottom: 20 }}>
